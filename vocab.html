@@ -47,16 +47,35 @@
 .study-hidden{display:none!important}
 .study-speak{margin-left:7px;border:1px solid #dce5df;background:#fff;border-radius:8px;padding:6px 10px;color:#37634c;cursor:pointer}
 @media(max-width:640px){.study-panel{padding:14px}.study-controls{display:grid;grid-template-columns:1fr 1fr}.study-field{min-width:0}.study-card{padding:20px 12px}.study-grade button{flex:1;min-width:0}}
+
+.deck-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.deck-name-input{min-width:210px;max-width:100%;padding:8px 10px;border:1px solid #dfe5ec;border-radius:8px;background:var(--card);color:var(--ink);font-size:14px}
+.deck-select{min-width:190px;padding:8px 10px;border:1px solid #dfe5ec;border-radius:8px;background:var(--card);color:var(--ink);font-size:14px}
+.deck-status{font-size:12px;color:var(--muted);margin-left:6px}
+.vocab-status{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:99px;font-size:11px;background:var(--accent-soft);color:var(--muted)}
+.vocab-status.hard{background:#fdebea;color:#bd4545}
+.vocab-status.due{background:#fff4df;color:#a66b08}
+.vocab-status.new{background:#eaf5ef;color:#197d50}
+@media(max-width:640px){.deck-name-input,.deck-select{width:100%;max-width:none}.deck-toolbar .btn{flex:1;text-align:center}}
+
 </style>
 </head>
 <body>
 <header class="topbar"><a class="brand" href="index.html">CET-6 真题</a><span class="crumb">生词本</span><span class="spacer"></span><a class="nav" href="index.html">首页</a><a class="nav" href="writing/">作文与翻译</a></header>
 <main>
 <h1>★ 我的生词本</h1>
-<div class="toolbar">
-  <button class="btn primary" onclick="cet6.exportVocab()">导出 JSON</button>
-  <label class="btn">导入 JSON<input type="file" accept=".json" style="display:none" onchange="if(this.files[0])cet6.importVocab(this.files[0])"></label>
+<div class="deck-toolbar">
+  <input class="deck-name-input" id="newDeckName" type="text" maxlength="60" placeholder="新词库名称，例如：2026年6月真题">
+  <label class="btn">选择 JSON 文件<input id="importFile" type="file" accept=".json" style="display:none"></label>
+  <button class="btn primary" id="importDeck">导入为新词库</button>
+  <button class="btn" id="exportDeck">导出当前词库</button>
   <button class="btn" id="maskBtn">遮住释义（自测）</button>
+</div>
+<div class="deck-toolbar">
+  <label class="hint" for="deckSelect">当前词库</label>
+  <select class="deck-select" id="deckSelect"></select>
+  <button class="btn" id="renameDeck">重命名</button>
+  <button class="btn" id="deleteDeck">删除词库</button>
   <span class="hint" id="count"></span>
 </div>
 
@@ -65,7 +84,7 @@
     <h2>双向记忆训练</h2>
     <span class="badge">英译中 · 中译英 · 混合</span>
   </div>
-  <p class="study-subtitle">先主动回忆，再翻开答案。选择认识程度，系统会记录复习进度。</p>
+  <p class="study-subtitle">按记忆情况自动安排复习：认识逐步拉长间隔，模糊缩短间隔，不认识优先回炉。</p>
   <div class="study-controls" id="studySetup">
     <label class="study-field">背词方向
       <select id="studyMode">
@@ -84,8 +103,9 @@
     </label>
     <label class="study-field">抽词方式
       <select id="studyOrder">
-        <option value="random" selected>随机抽取</option>
-        <option value="due">优先复习到期词</option>
+        <option value="smart" selected>智能复习（困难词优先）</option>
+        <option value="due">只复习到期词</option>
+        <option value="random">随机复习全部</option>
       </select>
     </label>
     <button class="study-btn primary" id="startStudy">开始背词</button>
@@ -124,202 +144,13 @@
     </div>
   </div>
   <div class="study-stats" id="dailyStats"></div>
-  <p class="study-note">记忆记录保存在当前浏览器中，不会修改你的生词 JSON。建议先尝试英→中，再用中→英检查是否真正记住。</p>
+  <p class="study-note">每个词库分别保存复习记录。英译中模式下，点击「认识 / 模糊 / 不认识」后会自动播放当前单词的美式发音；不认识和模糊词会在本轮稍后再次出现。</p>
 </section>
 
 <div class="card" id="list"></div>
 </main>
 <script>window.DICT_BASE=""</script>
 <script src="assets/site.js"></script>
-<script>
-(function(){
-  var v = {};
-  try { v = JSON.parse(localStorage.getItem('cet6_vocab') || '{}') || {}; } catch (e) { v = {}; }
-  var keys = Object.keys(v).sort();
-  document.getElementById('count').textContent = '共 ' + keys.length + ' 个生词';
-  var box = document.getElementById('list');
-  var safe = function(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
-
-  if (!keys.length) {
-    box.innerHTML = '<p class="hint">还没有生词。去任意套卷页面点击英文单词即可收藏，或导入 JSON。</p>';
-  } else {
-    var htmlStr = keys.map(function(k){
-      var e = v[k] || {};
-      return '<div class="vocab-item"><div class="t"><b class="en">' + safe(k) + '</b>' +
-        (e.p ? ' <span class="hint">/' + safe(e.p) + '/</span>' : '') +
-        (e.s ? ' <span class="badge">' + safe(e.s) + '</span>' : '') +
-        '<div class="zh">' + safe(e.t) + '</div>' +
-        (e.mnemonic ? '<div class="vocab-mnemonic"><strong>💡 助记：</strong>' + safe(e.mnemonic) + '</div>' : '') +
-        '</div>' +
-        '<button class="btn small" data-w="' + safe(k) + '">移除</button></div>';
-    }).join('');
-    box.innerHTML = htmlStr;
-    box.addEventListener('click', function(ev){
-      var b = ev.target.closest('[data-w]');
-      if (b) { cet6.removeVocab(b.getAttribute('data-w')); location.reload(); }
-    });
-  }
-
-  var masked = false;
-  document.getElementById('maskBtn').onclick = function(){
-    masked = !masked;
-    document.body.classList.toggle('hide-zh', masked);
-    this.textContent = masked ? '显示释义' : '遮住释义（自测）';
-  };
-
-  var STORAGE_KEY = 'cet6_vocab_study_v1';
-  var studyState = { items:{}, daily:{} };
-  try {
-    var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    if (saved && typeof saved === 'object') studyState = {
-      items: saved.items && typeof saved.items === 'object' ? saved.items : {},
-      daily: saved.daily && typeof saved.daily === 'object' ? saved.daily : {}
-    };
-  } catch(e) {}
-  function saveStudy(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(studyState)); } catch(e) {} }
-  function todayKey(){ return new Date().toISOString().slice(0,10); }
-  function getDaily(){
-    var d = todayKey();
-    if (!studyState.daily[d]) studyState.daily[d] = { tested:0, known:0, fuzzy:0, again:0 };
-    return studyState.daily[d];
-  }
-  function renderDaily(){
-    var d = getDaily();
-    document.getElementById('dailyStats').textContent =
-      '今日已测试 ' + d.tested + ' 词 · 认识 ' + d.known + ' · 模糊 ' + d.fuzzy + ' · 不认识 ' + d.again;
-  }
-  renderDaily();
-
-  var session = null;
-  var lastMissed = [];
-  var lastMode = 'mix';
-  var $ = function(id){ return document.getElementById(id); };
-  function shuffle(arr){
-    var a = arr.slice();
-    for (var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
-    return a;
-  }
-  function progress(){
-    if (!session) return;
-    var total = session.words.length;
-    var done = session.index;
-    $('progressText').textContent = '进度 ' + done + '/' + total;
-    $('progressPercent').textContent = (total ? Math.round(done/total*100) : 0) + '%';
-    $('progressFill').style.width = (total ? done/total*100 : 0) + '%';
-  }
-  function startSession(reviewOnly){
-    if (!keys.length){ alert('生词本里还没有单词，请先导入或收藏单词。'); return; }
-    var pool;
-    var mode = reviewOnly ? lastMode : $('studyMode').value;
-    if (reviewOnly) {
-      pool = lastMissed.slice();
-      lastMissed = [];
-    } else {
-      lastMode = mode;
-      pool = keys.slice();
-      if ($('studyOrder').value === 'due') {
-        pool.sort(function(a,b){
-          var aa = studyState.items[a] || {};
-          var bb = studyState.items[b] || {};
-          return (Number(aa.dueAt)||0) - (Number(bb.dueAt)||0);
-        });
-      } else {
-        pool = shuffle(pool);
-      }
-      var limit = $('studyLimit').value;
-      if (limit !== 'all') pool = pool.slice(0, Number(limit));
-    }
-    if (!pool.length){ alert('本轮没有可重练的错词。'); return; }
-    session = { words:pool, index:0, mode:mode, reviewOnly:!!reviewOnly, results:{known:0,fuzzy:0,again:0} };
-    $('studyEnd').classList.add('study-hidden');
-    $('studyCard').classList.remove('study-hidden');
-    $('studyProgress').classList.remove('study-hidden');
-    renderCard();
-  }
-  function renderCard(){
-    if (!session) return;
-    if (session.index >= session.words.length){ finishSession(); return; }
-    var word = session.words[session.index];
-    var entry = v[word] || {};
-    var direction = session.mode === 'mix' ? (Math.random() < .5 ? 'en' : 'zh') : session.mode;
-    session.currentWord = word;
-    session.currentDirection = direction;
-    $('directionLabel').textContent = direction === 'en' ? '英 → 中' : '中 → 英';
-    $('studyPrompt').textContent = direction === 'en' ? word : (entry.t || '该词暂无中文释义');
-    $('studyPhonetic').textContent = direction === 'en' && entry.p ? '/' + entry.p + '/' : '';
-    $('speakWord').classList.toggle('study-hidden', direction !== 'en');
-    $('studyAnswer').textContent = direction === 'en' ? (entry.t || '暂无中文释义，请在词表中补充。') : word;
-    $('studyMnemonicText').textContent = entry.mnemonic || '这个词还没有助记。导入带有 mnemonic 字段的 JSON 后，这里会自动显示。';
-    $('studyMnemonic').style.display = 'none';
-    $('studyAnswer').classList.add('study-hidden');
-    $('showAnswer').classList.remove('study-hidden');
-    $('studyGrade').classList.add('study-hidden');
-    $('cardHint').textContent = '先在心里回忆，再点击显示答案。';
-    progress();
-  }
-  function finishSession(){
-    $('studyCard').classList.add('study-hidden');
-    $('studyEnd').classList.remove('study-hidden');
-    $('studyProgress').classList.remove('study-hidden');
-    progress();
-    var r = session.results;
-    var total = session.words.length;
-    $('endSummary').textContent = '本轮完成 ' + total + ' 词：认识 ' + r.known + '，模糊 ' + r.fuzzy + '，不认识 ' + r.again + '。';
-    $('endAccuracy').textContent = '自评认识率：' + (total ? Math.round(r.known/total*100) : 0) + '%。' + (lastMissed.length ? ' 还有 ' + lastMissed.length + ' 个词建议重练。' : ' 本轮没有标记错词。');
-    $('reviewMisses').classList.toggle('study-hidden', lastMissed.length === 0);
-    session = null;
-    renderDaily();
-  }
-  $('startStudy').addEventListener('click', function(){ startSession(false); });
-  $('restartStudy').addEventListener('click', function(){ startSession(false); });
-  $('reviewMisses').addEventListener('click', function(){ startSession(true); });
-  $('showAnswer').addEventListener('click', function(){
-    $('studyAnswer').classList.remove('study-hidden');
-    $('studyMnemonic').style.display = 'block';
-    $('showAnswer').classList.add('study-hidden');
-    $('studyGrade').classList.remove('study-hidden');
-    $('cardHint').textContent = '根据刚才是否能主动回忆，选择你的掌握程度。';
-  });
-  $('studyGrade').addEventListener('click', function(ev){
-    var btn = ev.target.closest('[data-grade]');
-    if (!btn || !session) return;
-    var grade = btn.getAttribute('data-grade');
-    var word = session.currentWord;
-    var old = studyState.items[word] || { streak:0, dueAt:0, seen:0 };
-    var now = Date.now();
-    var streak = Number(old.streak) || 0;
-    var dueAt;
-    if (grade === 'known') {
-      streak += 1;
-      var days = [1,3,7,14,30][Math.min(streak-1,4)];
-      dueAt = now + days*24*60*60*1000;
-    } else if (grade === 'fuzzy') {
-      streak = 0;
-      dueAt = now + 24*60*60*1000;
-    } else {
-      streak = 0;
-      dueAt = now + 10*60*1000;
-    }
-    studyState.items[word] = { streak:streak, dueAt:dueAt, seen:(Number(old.seen)||0)+1, lastGrade:grade, lastSeen:now };
-    var daily = getDaily();
-    daily.tested += 1;
-    daily[grade] += 1;
-    session.results[grade] += 1;
-    if (!session.reviewOnly && grade !== 'known' && lastMissed.indexOf(word) === -1) lastMissed.push(word);
-    saveStudy();
-    renderDaily();
-    session.index += 1;
-    renderCard();
-  });
-  $('speakWord').addEventListener('click', function(){
-    if (!session || !window.speechSynthesis) { alert('当前浏览器暂不支持语音朗读。'); return; }
-    var utterance = new SpeechSynthesisUtterance(session.currentWord);
-    utterance.lang = 'en-US';
-    utterance.rate = .88;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  });
-})();
-</script>
+<script src="assets/vocab-review.js"></script>
 </body>
 </html>
