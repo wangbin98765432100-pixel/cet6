@@ -316,7 +316,18 @@
     fr.onload = function () {
       try {
         var inc = JSON.parse(fr.result), v = getVocab(), n = 0;
-        Object.keys(inc).forEach(function (k) { if (!v[k]) { v[k] = inc[k]; n++; } });
+        Object.keys(inc).forEach(function (k) {
+          if (!v[k]) { v[k] = inc[k]; n++; }
+          else if (inc[k] && typeof inc[k] === 'object') {
+            var changed = false;
+            Object.keys(inc[k]).forEach(function (field) {
+              if ((v[k][field] === undefined || v[k][field] === '') && inc[k][field] !== undefined && inc[k][field] !== '') {
+                v[k][field] = inc[k][field]; changed = true;
+              }
+            });
+            if (changed) n++;
+          }
+        });
         lsSet(VOCAB_KEY, v);
         toast('导入 ' + n + ' 个生词，即将刷新…');
         setTimeout(function () { location.reload(); }, 800);
