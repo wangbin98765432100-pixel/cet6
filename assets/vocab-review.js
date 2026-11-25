@@ -312,7 +312,9 @@
     if (!deck) return;
     var name = prompt('请输入新的词库名称：', deck.name);
     if (name === null || !name.trim()) return;
-    deck.name = uniqueName(name.trim() === deck.name ? name.trim() + ' ' : name.trim());
+    name = name.trim();
+    if (name === deck.name) return;
+    deck.name = uniqueName(name);
     deck.updatedAt = Date.now();
     saveDecks();
     renderDeckSelect();
