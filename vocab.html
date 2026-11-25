@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>生词本 · CET-6</title>
-<link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/site.css"><style>
+.vocab-mnemonic{margin-top:7px;padding:8px 10px;border-left:3px solid #d6a64b;background:#fff8e8;border-radius:6px;color:#76551d;font-size:13px;line-height:1.65;white-space:pre-wrap}
+.vocab-mnemonic strong{color:#9a6a13}
+</style>
 <style>
 .study-panel{margin:18px 0 24px;padding:18px;background:#fff;border:1px solid #e8e5df;border-radius:16px;box-shadow:0 3px 14px rgba(20,35,55,.04)}
 .study-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
@@ -39,6 +42,8 @@
 .study-end p{margin:6px 0;color:#64748b}
 .study-end-actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:15px}
 .study-note{margin-top:12px;color:#8792a0;font-size:12px;line-height:1.6}
+.study-mnemonic{display:none;margin:14px auto 0;max-width:620px;padding:14px 16px;border-radius:11px;background:#fff8e8;border:1px solid #f2dfb5;color:#71521a;text-align:left;font-size:14px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.study-mnemonic strong{display:block;margin-bottom:5px;color:#9a6a13;font-size:13px}
 .study-hidden{display:none!important}
 .study-speak{margin-left:7px;border:1px solid #dce5df;background:#fff;border-radius:8px;padding:6px 10px;color:#37634c;cursor:pointer}
 @media(max-width:640px){.study-panel{padding:14px}.study-controls{display:grid;grid-template-columns:1fr 1fr}.study-field{min-width:0}.study-card{padding:20px 12px}.study-grade button{flex:1;min-width:0}}
@@ -97,6 +102,7 @@
     <div class="study-phonetic" id="studyPhonetic"></div>
     <button class="study-speak study-hidden" id="speakWord" type="button">🔊 播放发音</button>
     <div class="study-answer study-hidden" id="studyAnswer"></div>
+    <div class="study-mnemonic" id="studyMnemonic"><strong>💡 通俗助记</strong><span id="studyMnemonicText"></span></div>
     <div class="study-card-actions">
       <button class="study-btn secondary" id="showAnswer">显示答案</button>
     </div>
@@ -142,7 +148,9 @@
       return '<div class="vocab-item"><div class="t"><b class="en">' + safe(k) + '</b>' +
         (e.p ? ' <span class="hint">/' + safe(e.p) + '/</span>' : '') +
         (e.s ? ' <span class="badge">' + safe(e.s) + '</span>' : '') +
-        '<div class="zh">' + safe(e.t) + '</div></div>' +
+        '<div class="zh">' + safe(e.t) + '</div>' +
+        (e.mnemonic ? '<div class="vocab-mnemonic"><strong>💡 助记：</strong>' + safe(e.mnemonic) + '</div>' : '') +
+        '</div>' +
         '<button class="btn small" data-w="' + safe(k) + '">移除</button></div>';
     }).join('');
     box.innerHTML = htmlStr;
@@ -241,6 +249,8 @@
     $('studyPhonetic').textContent = direction === 'en' && entry.p ? '/' + entry.p + '/' : '';
     $('speakWord').classList.toggle('study-hidden', direction !== 'en');
     $('studyAnswer').textContent = direction === 'en' ? (entry.t || '暂无中文释义，请在词表中补充。') : word;
+    $('studyMnemonicText').textContent = entry.mnemonic || '这个词还没有助记。导入带有 mnemonic 字段的 JSON 后，这里会自动显示。';
+    $('studyMnemonic').style.display = 'none';
     $('studyAnswer').classList.add('study-hidden');
     $('showAnswer').classList.remove('study-hidden');
     $('studyGrade').classList.add('study-hidden');
@@ -265,6 +275,7 @@
   $('reviewMisses').addEventListener('click', function(){ startSession(true); });
   $('showAnswer').addEventListener('click', function(){
     $('studyAnswer').classList.remove('study-hidden');
+    $('studyMnemonic').style.display = 'block';
     $('showAnswer').classList.add('study-hidden');
     $('studyGrade').classList.remove('study-hidden');
     $('cardHint').textContent = '根据刚才是否能主动回忆，选择你的掌握程度。';
